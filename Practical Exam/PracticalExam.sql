@@ -1,0 +1,111 @@
+USE practicalExam
+GO
+
+IF OBJECT_ID('Recharge', 'U') IS NOT NULL
+	DROP TABLE Recharge
+
+IF OBJECT_ID('Car', 'U') IS NOT NULL
+	DROP TABLE Car
+
+IF OBJECT_ID('Station', 'U') IS NOT NULL
+	DROP TABLE Station
+
+IF OBJECT_ID('Citizen', 'U') IS NOT NULL
+	DROP TABLE Citizen
+
+IF OBJECT_ID('City', 'U') IS NOT NULL
+	DROP TABLE City
+
+CREATE TABLE City
+	(CID TINYINT PRIMARY KEY IDENTITY(1,1),
+	CName VARCHAR(20),
+	Mayor VARCHAR(20))
+
+CREATE TABLE Citizen
+	(PID TINYINT PRIMARY KEY IDENTITY(1,1),
+	Name VARCHAR(20),
+	Age TINYINT,
+	CID TINYINT REFERENCES City(CID))
+
+CREATE TABLE Station
+	(SID TINYINT PRIMARY KEY IDENTITY (1,1),
+	Location VARCHAR(20))
+
+CREATE TABLE Car
+	(CARID TINYINT PRIMARY KEY IDENTITY (1,1),
+	Fuel TINYINT,
+	Seats TINYINT,
+	PID TINYINT REFERENCES Citizen(PID))
+
+CREATE TABLE Recharge
+	(CARID TINYINT REFERENCES Car(CARID),
+	SID TINYINT REFERENCES Station(SID),
+	Energy SMALLINT,
+	PRIMARY KEY(CARID, SID))
+GO
+
+CREATE OR ALTER PROC uspDeleteCitizens @City VARCHAR(20)
+AS
+	DECLARE @CID TINYINT = (SELECT CID
+						FROM City
+						WHERE CName = @City)
+	IF @CID IS NULL
+	BEGIN
+		RAISERROR ('No such city',16,1)
+		RETURN -1
+	END
+
+	DELETE FROM Citizen WHERE Citizen.CID = @CID
+GO
+
+INSERT INTO City VALUES ('Cluj','Bob'), ('Satu Mare','Joe'), ('LA','David')
+INSERT INTO Citizen VALUES ('Chris',12,1), ('Peter',35,2), ('Matti',29,3)
+
+SELECT * FROM City
+SELECT * FROM Citizen
+
+--EXEC uspDeleteCitizens 'Cluj'
+--GO
+
+INSERT INTO Car VALUES (24,4,1), (35,6,1), (46,2,2), (56,4,3), (99,4,2)
+GO
+
+SELECT * FROM Car
+GO
+
+CREATE OR ALTER FUNCTION ufFilterCitiesByNrCars (@N INT)
+RETURNS TABLE RETURN
+	SELECT Ci.CName
+	FROM City Ci
+	WHERE Ci.CID IN
+		(SELECT C.CID
+		FROM Citizen C
+		WHERE C.PID IN
+			(SELECT CAR.PID
+			FROM Car CAR
+			GROUP BY CAR.PID
+			HAVING COUNT(*) >= @N))
+GO
+
+SELECT * FROM ufFilterCitiesByNrCars(2)
+GO
+
+INSERT INTO Station VALUES ('Central'),('Airport'),('Eroilor')
+INSERT INTO Recharge VALUES (1,1,25),(1,2,25),(1,3,25),(2,1,35),(2,2,45)
+GO
+
+SELECT * FROM Station
+SELECT * FROM Recharge
+GO
+
+CREATE OR ALTER VIEW ViewCarsMaxStations
+AS
+	SELECT TOP 1 CarsNrStations.CARID, (CarsNrStations.NrStations)
+	FROM 
+		(SELECT R.CARID, COUNT(R.SID) AS NrStations
+		FROM Recharge R
+		GROUP BY R.CARID) AS CarsNrStations
+GO
+
+SELECT * FROM ViewCarsMaxStations
+GO
